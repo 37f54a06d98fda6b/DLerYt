@@ -29,7 +29,7 @@ runs:
         
     - name: Restore yt-dlp/FFmpeg-Builds cache
       id: cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: ${{ runner.tool_cache }}/yt-dlp-FFmpeg
         key: yt-dlp-FFmpeg-${{ steps.release-id-linux.outputs.release_id || steps.release-id-windows.outputs.release_id }}-${{ runner.os }}
@@ -54,7 +54,7 @@ runs:
         
     - name: Save yt-dlp/FFmpeg-Builds cache
       if: '! steps.cache.outputs.cache-hit'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: ${{ runner.tool_cache }}/yt-dlp-FFmpeg
         key: yt-dlp-FFmpeg-${{ steps.release-id-linux.outputs.release_id || steps.release-id-windows.outputs.release_id }}-${{ runner.os }}
