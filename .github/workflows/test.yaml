@@ -1,15 +1,15 @@
 name: Test setup-yt-dlp
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - action.yaml
-      - scripts/**
-      - .github/workflows/test.yaml
-      - ffmpeg/**
-  schedule:
-    - cron: '7 11 1 * *'
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - action.yaml
+  #     - scripts/**
+  #     - .github/workflows/test.yaml
+  #     - ffmpeg/**
+  # schedule:
+  #   - cron: '7 11 1 * *'
   workflow_dispatch:
   
 jobs:
