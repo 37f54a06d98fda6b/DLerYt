@@ -26,11 +26,11 @@ jobs:
         run: yt-dlp --version
       
       
-      - name: Update yt-dlp YouTube cookies using setup-yt-dlp/cookies/update
-        uses: AnimMouse/setup-yt-dlp/cookies/update@main
-        with:
-          cookies_secret_name: YOUTUBE_COOKIES
-          token: ${{ secrets.GH_PAT }}
+      # - name: Update yt-dlp YouTube cookies using setup-yt-dlp/cookies/update
+      #   uses: AnimMouse/setup-yt-dlp/cookies/update@main
+      #   with:
+      #     cookies_secret_name: YOUTUBE_COOKIES
+      #     token: ${{ secrets.GH_PAT }}
       
       # - name: Install aria2
       #   run: sudo apt-get install -y aria2
