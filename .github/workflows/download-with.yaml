@@ -59,7 +59,7 @@ jobs:
             echo "⬇️ Downloading $URL -> $FILENAME"
 
             yt-dlp \
-              -f "bestvideo[height=1080][ext=webm]+bestaudio[abr<=100]/bestvideo[height=1080][vcodec=avc1]+bestaudio[abr<=100]/bestvideo[height<=1080][height>=720][ext=webm]+bestaudio[abr<=100]/bestvideo[height<=1080][height>=720]+bestaudio[abr<=100]" \
+              -f "bestvideo[height=1080][ext=webm]+bestaudio[abr<=100]/bestvideo[height=1080][vcodec=avc1]+bestaudio[abr<=100]/bestvideo[height<=1080][height>=720][ext=webm]+bestaudio[abr<=100]/bestvideo[height<=1080][height>=720]+bestaudio[abr<=100]/best" \
               --output "tmp_downloads/%(title)s - %(upload_date)s@%(uploader)s [%(id)s].%(ext)s" \
               "$URL"
                 
