@@ -1,26 +1,210 @@
-name: Manual Workflow
+name: Download Video
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'YouTube video URL'
+        description: 'Video URL'
         required: true
         type: string
-      quality:
+      
+      video_codec:
+        description: 'Video codec'
+        required: false
+        default: 'any'
+        type: choice
+        options:
+          - 'any'
+          - 'av01 (AV1)'
+          - 'avc1 (H.264)'
+          - 'vp9 (VP9)'
+      
+      video_quality:
         description: 'Video quality'
         required: false
         default: '1080p'
         type: choice
         options:
+          - '2160p (4K)'
+          - '1440p'
           - '1080p'
           - '720p'
           - '480p'
+      
+      audio_codec:
+        description: 'Audio codec'
+        required: false
+        default: 'opus'
+        type: choice
+        options:
+          - 'opus'
+          - 'mp4a (AAC)'
+          - 'vorbis'
+      
+      audio_bitrate:
+        description: 'Max audio bitrate (kbps)'
+        required: false
+        default: '128'
+        type: choice
+        options:
+          - '96'
+          - '128'
+          - '192'
+          - '256'
+          - '320'
+      
+      subtitles:
+        description: 'Download subtitles'
+        required: false
+        default: false
+        type: boolean
+      
+      subtitle_langs:
+        description: 'Subtitle languages (comma-separated, e.g. en,ja)'
+        required: false
+        default: 'en'
+        type: string
+      
+      output_template:
+        description: 'Output filename template'
+        required: false
+        # default: '%(uploader)s - %(title)s [%(id)s].%(ext)s'
+        # default: '%(title)s - %(upload_date)s@%(uploader)s [%(id)s].%(ext)s'
+        default: '%(title)s@%(uploader)s [%(id)s].%(ext)s'
+        type: string
 
 jobs:
   download:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Use inputs
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup yt-dlp using setup-yt-dlp
+        uses: AnimMouse/setup-yt-dlp@main
+
+      - name: Setup yt-dlp YouTube cookies using setup-yt-dlp/cookies
+        uses: AnimMouse/setup-yt-dlp/cookies@main
+        with:
+          cookies: ${{ secrets.YOUTUBE_COOKIES }}
+      
+      - name: Test yt-dlp by checking version
+        run: yt-dlp --version
+      
+      - name: Build format string
+        id: format
         run: |
-          echo "URL: ${{ inputs.video_url }}"
-          echo "Quality: ${{ inputs.quality }}"
+          # Extract codec values (remove descriptions)
+          VIDEO_CODEC="${{ inputs.video_codec }}"
+          VIDEO_CODEC="${VIDEO_CODEC%% *}"
+          
+          AUDIO_CODEC="${{ inputs.audio_codec }}"
+          AUDIO_CODEC="${AUDIO_CODEC%% *}"
+          
+          # Extract height from quality
+          HEIGHT="${{ inputs.video_quality }}"
+          HEIGHT="${HEIGHT%%p*}"
+          
+          # Build format string
+          if [ "$VIDEO_CODEC" = "any" ]; then
+            FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+          else
+            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+          fi
+          
+          echo "format=$FORMAT" >> $GITHUB_OUTPUT
+      
+      - name: Download video(s)
+        run: |
+          SUBTITLE_OPTS=""
+          if [ "${{ inputs.subtitles }}" = "true" ]; then
+            SUBTITLE_OPTS="--write-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
+          fi
+          
+          # yt-dlp \
+          #   -f "${{ steps.format.outputs.format }}" \
+          #   --output "downloads/${{ inputs.output_template }}" \
+          #   $SUBTITLE_OPTS \
+          #   "${{ inputs.video_url }}"
+
+          mkdir -p downloads tmp_downloads
+          
+          for URL in $inputs.video_url; do
+            echo "⬇️ Downloading $URL"
+            yt-dlp \
+              -f "${{ steps.format.outputs.format }}" \
+              --output "tmp_downloads/${{ inputs.output_template }}" \
+              $SUBTITLE_OPTS \
+              "$URL"
+          done
+      
+      - name: Package video(s)
+        run: |
+          # Split any file over 90MB using zip native split (unzip compatible)
+          for FILE in tmp_downloads/*; do
+            [ -f "$FILE" ] || continue
+            SIZE=$(stat -c%s "$FILE")
+            LIMIT=$((90 * 1024 * 1024))
+            BASENAME=$(basename "$FILE")
+
+            # if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "✂️ $BASENAME is $(( SIZE / 1024 / 1024 ))MB — splitting with zip..."
+            # zip -s creates: file.zip, file.z01, file.z02, ...
+            zip -0 -s 90m "downloads/${BASENAME}.zip" -j "$FILE"
+            echo "✅ Parts: $(ls downloads/${BASENAME}* | wc -l)"
+            # else
+            #   cp "$FILE" "downloads/$BASENAME"
+            # fi
+          done
+          
+          rm -rf tmp_downloads 
+
+      
+      # - name: Upload artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: downloaded-video
+      #     path: downloads/
+      - name: Commit & Push in batches of 5 files
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          mapfile -t ALL_FILES < <(find downloads/ -type f)
+
+          TOTAL=${#ALL_FILES[@]}
+          echo "📦 Total files to push: $TOTAL"
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+
+          BATCH_SIZE=5
+          BATCH_NUM=0
+
+          for (( i=0; i<TOTAL; i+=BATCH_SIZE )); do
+            BATCH_NUM=$(( BATCH_NUM + 1 ))
+            BATCH=("${ALL_FILES[@]:i:BATCH_SIZE}")
+
+            echo "🚀 Pushing batch $BATCH_NUM: files $((i+1))–$(( i + ${#BATCH[@]} )) of $TOTAL"
+
+            for FILE in "${BATCH[@]}"; do
+              git add "$FILE"
+            done
+            
+            git commit -m "Add downloaded files — batch $BATCH_NUM [skip ci]"
+
+            git pull --rebase origin "$BRANCH"
+            git push origin HEAD:"$BRANCH"
+
+            echo "✅ Batch $BATCH_NUM pushed"
+          done
+
+          echo "🎉 All $TOTAL files pushed in $BATCH_NUM batch(es)"
+
+
