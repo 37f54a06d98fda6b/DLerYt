@@ -132,7 +132,7 @@ jobs:
 
           mkdir -p downloads tmp_downloads
           
-          for URL in ${{ inputs.video_url }} do           
+          for URL in ${{ inputs.video_url }}; do
             echo "⬇️ Downloading $URL"
             yt-dlp \
               -f "${{ steps.format.outputs.format }}" \
