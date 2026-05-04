@@ -3,9 +3,19 @@ on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'Video URL'
+        description: 'Video URLs (space-separated)'
         required: true
         type: string
+
+      stream_type:
+        description: 'Stream type'
+        required: false
+        default: 'video+audio'
+        type: choice
+        options:
+          - 'video+audio'
+          - 'video-only'
+          - 'audio-only'
       
       video_codec:
         description: 'Video codec'
@@ -29,6 +39,7 @@ on:
           - '1080p'
           - '720p'
           - '480p'
+          - '360p'
       
       audio_codec:
         description: 'Audio codec'
@@ -46,6 +57,7 @@ on:
         default: '128'
         type: choice
         options:
+          - '64'
           - '96'
           - '128'
           - '192'
@@ -67,7 +79,6 @@ on:
       output_template:
         description: 'Output filename template'
         required: false
-        # default: '%(uploader)s - %(title)s [%(id)s].%(ext)s'
         # default: '%(title)s - %(upload_date)s@%(uploader)s [%(id)s].%(ext)s'
         default: '%(title)s@%(uploader)s [%(id)s].%(ext)s'
         type: string
@@ -94,12 +105,13 @@ jobs:
           cookies: ${{ secrets.YOUTUBE_COOKIES }}
       
       - name: Test yt-dlp by checking version
-        run: yt-dlp --version      
-     
+        run: yt-dlp --version     
 
       - name: Build format string
         id: format
         run: |
+          STREAM_TYPE="${{ inputs.stream_type }}"
+          
           # Extract codec values (remove descriptions)
           VIDEO_CODEC="${{ inputs.video_codec }}"
           VIDEO_CODEC="${VIDEO_CODEC%% *}"
@@ -114,16 +126,44 @@ jobs:
           # Extract numeric bitrate
           BITRATE="${{ inputs.audio_bitrate }}"
           BITRATE="${BITRATE%% *}"
-          
-          # Use exact height or "best video not exceeding this height"
-          if [ "$VIDEO_CODEC" = "any" ]; then
-            FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+
+          # Build format string based on stream type
+          if [ "$STREAM_TYPE" = "audio-only" ]; then
+            # Audio only
+            FORMAT="bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestaudio[acodec^=${AUDIO_CODEC}]/bestaudio/best"
+            MERGE_FORMAT="m4a"
+          elif [ "$STREAM_TYPE" = "video-only" ]; then
+            # Video only (no audio)
+            if [ "$VIDEO_CODEC" = "any" ]; then
+              FORMAT="bestvideo[height<=${HEIGHT}]/best[height<=${HEIGHT}]"
+            else
+              FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]/bestvideo[height<=${HEIGHT}]"
+            fi
+            MERGE_FORMAT="mp4"
           else
-            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+            # Video + Audio (default)
+            if [ "$VIDEO_CODEC" = "any" ]; then
+              FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+            else
+              FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+            fi
+            MERGE_FORMAT="mp4"
           fi
           
           echo "format=$FORMAT" >> $GITHUB_OUTPUT
+          echo "merge_format=$MERGE_FORMAT" >> $GITHUB_OUTPUT
           echo "📋 Format string: $FORMAT"
+          echo "📦 Merge format: $MERGE_FORMAT"          
+          
+          # # Use exact height or "best video not exceeding this height"
+          # if [ "$VIDEO_CODEC" = "any" ]; then
+          #   FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+          # else
+          #   FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+          # fi
+          
+          # echo "format=$FORMAT" >> $GITHUB_OUTPUT
+          # echo "📋 Format string: $FORMAT"
 
       
       - name: Download video(s)
@@ -145,6 +185,7 @@ jobs:
             yt-dlp \
               -f "${{ steps.format.outputs.format }}" \
               --output "tmp_downloads/${{ inputs.output_template }}" \
+              --merge-output-format "${{ steps.format.outputs.merge_format }}" \
               $SUBTITLE_OPTS \
               "$URL"
           done
