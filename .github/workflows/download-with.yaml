@@ -18,13 +18,14 @@ jobs:
         run: |
           MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $MSG"
-
+      
           if echo "$MSG" | grep -qP '^(download-zip:|download:)'; then
             echo "✅ Valid download command found"
           else
             echo "⏭️ No download command at start of commit message — skipping workflow"
-            exit 0
+            EXITED!
           fi
+
           
       
       - name: Setup yt-dlp using setup-yt-dlp
