@@ -15,17 +15,15 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check commit message prefix
-        id: check_prefix
         run: |
           MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $MSG"
 
           if echo "$MSG" | grep -qP '^(download-zip:|download:)'; then
             echo "✅ Valid download command found"
-            echo "should_continue=true" >> $GITHUB_OUTPUT
           else
             echo "⏭️ No download command at start of commit message — skipping workflow"
-            echo "should_continue=false" >> $GITHUB_OUTPUT
+            exit 0
           fi
           
       
