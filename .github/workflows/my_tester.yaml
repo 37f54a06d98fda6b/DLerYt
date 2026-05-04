@@ -131,7 +131,6 @@ jobs:
           if [ "$STREAM_TYPE" = "audio-only" ]; then
             # Audio only
             FORMAT="bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestaudio[acodec^=${AUDIO_CODEC}]/bestaudio/best"
-            MERGE_FORMAT="m4a"
           elif [ "$STREAM_TYPE" = "video-only" ]; then
             # Video only (no audio)
             if [ "$VIDEO_CODEC" = "any" ]; then
@@ -139,7 +138,6 @@ jobs:
             else
               FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]/bestvideo[height<=${HEIGHT}]"
             fi
-            MERGE_FORMAT="mp4"
           else
             # Video + Audio (default)
             if [ "$VIDEO_CODEC" = "any" ]; then
@@ -147,13 +145,10 @@ jobs:
             else
               FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
             fi
-            MERGE_FORMAT="mp4"
           fi
           
           echo "format=$FORMAT" >> $GITHUB_OUTPUT
-          echo "merge_format=$MERGE_FORMAT" >> $GITHUB_OUTPUT
           echo "📋 Format string: $FORMAT"
-          echo "📦 Merge format: $MERGE_FORMAT"          
           
           # # Use exact height or "best video not exceeding this height"
           # if [ "$VIDEO_CODEC" = "any" ]; then
@@ -185,7 +180,6 @@ jobs:
             yt-dlp \
               -f "${{ steps.format.outputs.format }}" \
               --output "tmp_downloads/${{ inputs.output_template }}" \
-              --merge-output-format "${{ steps.format.outputs.merge_format }}" \
               $SUBTITLE_OPTS \
               "$URL"
           done
