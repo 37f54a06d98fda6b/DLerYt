@@ -94,30 +94,8 @@ jobs:
           cookies: ${{ secrets.YOUTUBE_COOKIES }}
       
       - name: Test yt-dlp by checking version
-        run: yt-dlp --version
-      
-      # - name: Build format string
-      #   id: format
-      #   run: |
-      #     # Extract codec values (remove descriptions)
-      #     VIDEO_CODEC="${{ inputs.video_codec }}"
-      #     VIDEO_CODEC="${VIDEO_CODEC%% *}"
-          
-      #     AUDIO_CODEC="${{ inputs.audio_codec }}"
-      #     AUDIO_CODEC="${AUDIO_CODEC%% *}"
-          
-      #     # Extract height from quality
-      #     HEIGHT="${{ inputs.video_quality }}"
-      #     HEIGHT="${HEIGHT%%p*}"
-          
-      #     # Build format string
-      #     if [ "$VIDEO_CODEC" = "any" ]; then
-      #       FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
-      #     else
-      #       FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
-      #     fi
-          
-      #     echo "format=$FORMAT" >> $GITHUB_OUTPUT
+        run: yt-dlp --version      
+     
 
       - name: Build format string
         id: format
@@ -155,11 +133,9 @@ jobs:
             SUBTITLE_OPTS="--write-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
           fi
           
-          # yt-dlp \
-          #   -f "${{ steps.format.outputs.format }}" \
-          #   --output "downloads/${{ inputs.output_template }}" \
-          #   $SUBTITLE_OPTS \
-          #   "${{ inputs.video_url }}"
+          echo "📋 Subtitle options: $SUBTITLE_OPTS"
+          echo "🔤 Subtitle langs input: ${{ inputs.subtitle_langs }}"
+          echo "✅ Subtitles enabled: ${{ inputs.subtitles }}"          
 
           mkdir -p downloads tmp_downloads
           
