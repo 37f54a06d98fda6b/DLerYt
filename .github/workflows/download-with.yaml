@@ -23,7 +23,8 @@ jobs:
             echo "✅ Valid download command found"
           else
             echo "⏭️ No download command at start of commit message — skipping workflow"
-            EXITED!
+            # EXITED!
+            exit 1
           fi
 
           
