@@ -137,11 +137,11 @@ jobs:
           BITRATE="${{ inputs.audio_bitrate }}"
           BITRATE="${BITRATE%% *}"
           
-          # Build format string with proper fallbacks
+          # Use exact height or "best video not exceeding this height"
           if [ "$VIDEO_CODEC" = "any" ]; then
-            FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height>=${HEIGHT}]+bestaudio/best"
+            FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
           else
-            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio/bestvideo+bestaudio/best"
+            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
           fi
           
           echo "format=$FORMAT" >> $GITHUB_OUTPUT
