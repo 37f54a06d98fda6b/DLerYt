@@ -29,4 +29,4 @@ steps:
 
 
 ## Usage
-Enables actions in your repor and use the Actions tab..
+Enables actions in your repo and use the Actions tab.
