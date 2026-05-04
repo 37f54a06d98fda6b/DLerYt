@@ -130,12 +130,7 @@ jobs:
         run: |
           SUBTITLE_OPTS=""
           if [ "${{ inputs.subtitles }}" = "true" ]; then
-            SUBTITLE_OPTS="--write-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
-          fi
-
-          SUBTITLE_OPTS=""
-          if [ "${{ inputs.subtitles }}" = "true" ]; then
-            SUBTITLE_OPTS="--write-subs --write-auto-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
+            SUBTITLE_OPTS="--write-subs --write-auto-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs --compat-options no-keep-subs"
           fi
           
           echo "📋 Subtitle options: $SUBTITLE_OPTS"
