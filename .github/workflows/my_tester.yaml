@@ -2,10 +2,26 @@ name: Download Video
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Operation mode'
+        required: true
+        type: choice
+        options:
+          - 'download'
+          - 'list-formats'
+          - 'custom-format'
+        default: 'download'      
+      
       video_url:
-        description: 'Video URLs (space-separated)'
+        description: 'Video URLs (space-separated for multiple)'
         required: true
         type: string
+
+      custom_format:
+        description: 'Custom format string (only used when mode=custom-format)'
+        required: false
+        type: string
+        default: 'best'
 
       stream_type:
         description: 'Stream type'
@@ -107,59 +123,70 @@ jobs:
       - name: Test yt-dlp by checking version
         run: yt-dlp --version     
 
-      - name: Build format string
+      - name: List available formats
+        if: inputs.mode == 'list-formats'
+        run: |
+          echo "📋 Listing available formats for each URL..."
+          for URL in ${{ inputs.video_url }}; do
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "🔗 URL: $URL"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            yt-dlp --list-formats "$URL"
+          done
+          
+          echo ""
+          echo "✅ Format listing complete. Workflow will now terminate."
+          exit 1
+      
+      
+      - name: Build format string        
         id: format
         run: |
-          STREAM_TYPE="${{ inputs.stream_type }}"
-          
-          # Extract codec values (remove descriptions)
-          VIDEO_CODEC="${{ inputs.video_codec }}"
-          VIDEO_CODEC="${VIDEO_CODEC%% *}"
-          
-          AUDIO_CODEC="${{ inputs.audio_codec }}"
-          AUDIO_CODEC="${AUDIO_CODEC%% *}"
-          
-          # Extract height from quality
-          HEIGHT="${{ inputs.video_quality }}"
-          HEIGHT="${HEIGHT%%p*}"
-          
-          # Extract numeric bitrate
-          BITRATE="${{ inputs.audio_bitrate }}"
-          BITRATE="${BITRATE%% *}"
-
-          # Build format string based on stream type
-          if [ "$STREAM_TYPE" = "audio-only" ]; then
-            # Audio only
-            FORMAT="bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestaudio[acodec^=${AUDIO_CODEC}]/bestaudio/best"
-          elif [ "$STREAM_TYPE" = "video-only" ]; then
-            # Video only (no audio)
-            if [ "$VIDEO_CODEC" = "any" ]; then
-              FORMAT="bestvideo[height<=${HEIGHT}]/best[height<=${HEIGHT}]"
-            else
-              FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]/bestvideo[height<=${HEIGHT}]"
-            fi
+          if [ "${{ inputs.mode }}" = "custom-format" ]; then
+              FORMAT="${{ inputs.custom_format }}"
+              echo "🎯 Using custom format: $FORMAT"
           else
-            # Video + Audio (default)
-            if [ "$VIDEO_CODEC" = "any" ]; then
-              FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+            STREAM_TYPE="${{ inputs.stream_type }}"
+            
+            # Extract codec values (remove descriptions)
+            VIDEO_CODEC="${{ inputs.video_codec }}"
+            VIDEO_CODEC="${VIDEO_CODEC%% *}"
+            
+            AUDIO_CODEC="${{ inputs.audio_codec }}"
+            AUDIO_CODEC="${AUDIO_CODEC%% *}"
+            
+            # Extract height from quality
+            HEIGHT="${{ inputs.video_quality }}"
+            HEIGHT="${HEIGHT%%p*}"
+            
+            # Extract numeric bitrate
+            BITRATE="${{ inputs.audio_bitrate }}"
+            BITRATE="${BITRATE%% *}"
+  
+            # Build format string based on stream type
+            if [ "$STREAM_TYPE" = "audio-only" ]; then
+              # Audio only
+              FORMAT="bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestaudio[acodec^=${AUDIO_CODEC}]/bestaudio/best"
+            elif [ "$STREAM_TYPE" = "video-only" ]; then
+              # Video only (no audio)
+              if [ "$VIDEO_CODEC" = "any" ]; then
+                FORMAT="bestvideo[height<=${HEIGHT}]/best[height<=${HEIGHT}]"
+              else
+                FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]/bestvideo[height<=${HEIGHT}]"
+              fi
             else
-              FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+              # Video + Audio (default)
+              if [ "$VIDEO_CODEC" = "any" ]; then
+                FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+              else
+                FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
+              fi
             fi
           fi
           
           echo "format=$FORMAT" >> $GITHUB_OUTPUT
-          echo "📋 Format string: $FORMAT"
-          
-          # # Use exact height or "best video not exceeding this height"
-          # if [ "$VIDEO_CODEC" = "any" ]; then
-          #   FORMAT="bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
-          # else
-          #   FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height<=${HEIGHT}]+bestaudio/best[height<=${HEIGHT}]"
-          # fi
-          
-          # echo "format=$FORMAT" >> $GITHUB_OUTPUT
-          # echo "📋 Format string: $FORMAT"
-
+          echo "📋 Final format string: $FORMAT"
       
       - name: Download video(s)
         run: |
@@ -205,12 +232,7 @@ jobs:
           
           rm -rf tmp_downloads 
 
-      
-      # - name: Upload artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: downloaded-video
-      #     path: downloads/
+
       - name: Commit & Push in batches of 5 files
         run: |
           BRANCH="${GITHUB_REF_NAME}"
