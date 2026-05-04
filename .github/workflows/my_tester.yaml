@@ -134,6 +134,7 @@ jobs:
           
           for URL in ${{ inputs.video_url }}; do
             echo "⬇️ Downloading $URL"
+            
             yt-dlp \
               -f "${{ steps.format.outputs.format }}" \
               --output "tmp_downloads/${{ inputs.output_template }}" \
