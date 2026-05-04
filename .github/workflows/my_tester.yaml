@@ -85,6 +85,8 @@ jobs:
       
       - name: Setup yt-dlp using setup-yt-dlp
         uses: AnimMouse/setup-yt-dlp@main
+        with:
+          nightly: true
 
       - name: Setup yt-dlp YouTube cookies using setup-yt-dlp/cookies
         uses: AnimMouse/setup-yt-dlp/cookies@main
