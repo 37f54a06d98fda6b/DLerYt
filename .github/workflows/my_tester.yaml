@@ -61,7 +61,7 @@ on:
       subtitle_langs:
         description: 'Subtitle languages (comma-separated, e.g. en,ja)'
         required: false
-        default: 'en'
+        default: 'en.*'
         type: string
       
       output_template:
@@ -131,6 +131,11 @@ jobs:
           SUBTITLE_OPTS=""
           if [ "${{ inputs.subtitles }}" = "true" ]; then
             SUBTITLE_OPTS="--write-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
+          fi
+
+          SUBTITLE_OPTS=""
+          if [ "${{ inputs.subtitles }}" = "true" ]; then
+            SUBTITLE_OPTS="--write-subs --write-auto-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs"
           fi
           
           echo "📋 Subtitle options: $SUBTITLE_OPTS"
