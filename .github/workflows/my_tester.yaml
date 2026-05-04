@@ -96,6 +96,29 @@ jobs:
       - name: Test yt-dlp by checking version
         run: yt-dlp --version
       
+      # - name: Build format string
+      #   id: format
+      #   run: |
+      #     # Extract codec values (remove descriptions)
+      #     VIDEO_CODEC="${{ inputs.video_codec }}"
+      #     VIDEO_CODEC="${VIDEO_CODEC%% *}"
+          
+      #     AUDIO_CODEC="${{ inputs.audio_codec }}"
+      #     AUDIO_CODEC="${AUDIO_CODEC%% *}"
+          
+      #     # Extract height from quality
+      #     HEIGHT="${{ inputs.video_quality }}"
+      #     HEIGHT="${HEIGHT%%p*}"
+          
+      #     # Build format string
+      #     if [ "$VIDEO_CODEC" = "any" ]; then
+      #       FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+      #     else
+      #       FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+      #     fi
+          
+      #     echo "format=$FORMAT" >> $GITHUB_OUTPUT
+
       - name: Build format string
         id: format
         run: |
@@ -110,14 +133,20 @@ jobs:
           HEIGHT="${{ inputs.video_quality }}"
           HEIGHT="${HEIGHT%%p*}"
           
-          # Build format string
+          # Extract numeric bitrate
+          BITRATE="${{ inputs.audio_bitrate }}"
+          BITRATE="${BITRATE%% *}"
+          
+          # Build format string with proper fallbacks
           if [ "$VIDEO_CODEC" = "any" ]; then
-            FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+            FORMAT="bestvideo[height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[height>=${HEIGHT}]+bestaudio/best"
           else
-            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec=${AUDIO_CODEC}][abr<=${{ inputs.audio_bitrate }}]/best"
+            FORMAT="bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}][abr<=${BITRATE}]/bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio[acodec^=${AUDIO_CODEC}]/bestvideo[vcodec^=${VIDEO_CODEC}][height>=${HEIGHT}]+bestaudio/bestvideo+bestaudio/best"
           fi
           
           echo "format=$FORMAT" >> $GITHUB_OUTPUT
+          echo "📋 Format string: $FORMAT"
+
       
       - name: Download video(s)
         run: |
