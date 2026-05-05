@@ -19,7 +19,7 @@ This repo automatically uses a GitHub token (GITHUB_TOKEN) in order to authentic
 Also cookies have expiration, which means it has to be refreshed, or else it will expire and will work no more. To prevent expiration, yt-dlp automatically refreshes the cookies as needed.
 To update those cookies in GitHub secrets, requires a fine-grained personal access token that has __read and write access to the secrets scope in the current repository__ to update the secret as the default GITHUB_TOKEN does not have access to the secrets scope. 
 
-Go to Account **Setting → Developer Settings** to have a fine-grained token issued for this repo and then save it in this repo's secrets as `GH_PAT`.
+Go to **Account Setting → Developer Settings** to have a fine-grained token issued for this repo and then save it in this repo's secrets as `GH_PAT`.
 
 
 
