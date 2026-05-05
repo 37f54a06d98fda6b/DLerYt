@@ -1,4 +1,4 @@
-name: Download Video
+name: 🔴Download Video
 on:
   workflow_dispatch:
     inputs:
