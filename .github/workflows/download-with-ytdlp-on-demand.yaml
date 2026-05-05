@@ -1,4 +1,4 @@
-name: 🔴Download Video
+name: 🔴Download videos(s) on-demand & Save to repo
 on:
   workflow_dispatch:
     inputs:
