@@ -1,4 +1,4 @@
-name: Download from Commit & Save to Repo
+name: Download videos(s) on commit & Save to repo
 on:
   push:
     branches:
