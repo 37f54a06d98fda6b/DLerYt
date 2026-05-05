@@ -137,7 +137,7 @@ jobs:
           
           echo ""
           echo "✅ Format listing complete. Workflow will now terminate."
-          exit 1
+          exit 0
       
       
       - name: Build format string        
