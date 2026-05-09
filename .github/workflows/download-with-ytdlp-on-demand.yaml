@@ -98,6 +98,13 @@ on:
         # default: '%(title)s - %(upload_date)s@%(uploader)s [%(id)s].%(ext)s'
         default: '%(title)s@%(uploader)s [%(id)s].%(ext)s'
         type: string
+      
+      download_sections:
+        # description: 'Download specific sections (e.g., "*10:15-inf" for 10:15 onwards, "*00:10-00:20" for 10-20 seconds, "intro,outro" for chapters)'
+        description: 'Download specific parts (e.g., "*10:15-inf" for 10:15 onwards, "intro,*10:15-inf" for named chapter + time range). Space-separated for multiple sections.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   download:
@@ -192,6 +199,7 @@ jobs:
       - name: Download video(s)
         if: inputs.mode != 'list-formats'
         run: |
+          # Subtitle options
           SUBTITLE_OPTS=""
           if [ "${{ inputs.subtitles }}" = "true" ]; then
             SUBTITLE_OPTS="--write-subs --write-auto-subs --sub-langs ${{ inputs.subtitle_langs }} --embed-subs --compat-options no-keep-subs"
@@ -199,7 +207,16 @@ jobs:
           
           echo "📋 Subtitle options: $SUBTITLE_OPTS"
           echo "🔤 Subtitle langs input: ${{ inputs.subtitle_langs }}"
-          echo "✅ Subtitles enabled: ${{ inputs.subtitles }}"          
+          echo "✅ Subtitles enabled: ${{ inputs.subtitles }}"
+
+          # Build download sections arguments
+          SECTION_OPTS=""
+          if [ -n "${{ inputs.download_sections }}" ]; then
+            for SECTION in ${{ inputs.download_sections }}; do
+              SECTION_OPTS="$SECTION_OPTS --download-sections $SECTION"
+            done
+            echo "📍 Download sections: $SECTION_OPTS"
+          fi        
 
           mkdir -p downloads tmp_downloads
           
@@ -210,6 +227,7 @@ jobs:
               -f "${{ steps.format.outputs.format }}" \
               --output "tmp_downloads/${{ inputs.output_template }}" \
               $SUBTITLE_OPTS \
+              $SECTION_OPTS \
               "$URL"
           done
       
@@ -275,5 +293,4 @@ jobs:
           done
 
           echo "🎉 All $TOTAL files pushed in $BATCH_NUM batch(es)"
-
 
