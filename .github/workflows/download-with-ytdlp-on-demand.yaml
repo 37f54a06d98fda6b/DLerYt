@@ -227,110 +227,115 @@ jobs:
       - name: Cut and combine video sections
         if: inputs.download_sections != '' && inputs.mode != 'list-formats'
         run: |
-          set -x  # Enable command tracing
-          shopt -s nullglob
-          
-          echo "=== Starting section cutting ==="
-          echo "Download sections input: '${{ inputs.download_sections }}'"
-          echo "Available video files:"
-          ls -lh *.mp4 *.mkv *.webm 2>/dev/null || echo "No video files found"
-          
-          VIDEO_COUNT=0
-          for video in *.mp4 *.mkv *.webm; do
-            [ -f "$video" ] || continue
-            VIDEO_COUNT=$((VIDEO_COUNT + 1))
+          (
+            set -x  # Enable command tracing
+            shopt -s nullglob
             
-            echo ""
-            echo "=== Processing video #$VIDEO_COUNT: '$video' ==="
+            echo "=== Starting section cutting ==="
+            echo "Download sections input: '${{ inputs.download_sections }}'"
             
-            if ! DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video" 2>&1); then
-              echo "ERROR: Failed to get duration for '$video'"
-              echo "ffprobe output: $DURATION"
-              continue
-            fi
-            echo "Duration: $DURATION seconds"
+            cd tmp_downloads
+            echo "Changed to tmp_downloads directory"
+            echo "Available video files:"
+            ls -lh *.mp4 *.mkv *.webm 2>/dev/null || echo "No video files found"
             
-            BASENAME="${video%.*}"
-            EXT="${video##*.}"
-            echo "Basename: '$BASENAME', Extension: '$EXT'"
-            
-            SECTIONS="${{ inputs.download_sections }}"
-            PART_NUM=0
-            CONCAT_LIST="${BASENAME}_concat_list.txt"
-            > "$CONCAT_LIST"
-            echo "Created concat list: '$CONCAT_LIST'"
-            
-            for section in $SECTIONS; do
-              echo ""
-              echo "--- Processing section: '$section' ---"
-              section="${section#\*}"
-              echo "After removing *: '$section'"
+            VIDEO_COUNT=0
+            for video in *.mp4 *.mkv *.webm; do
+              [ -f "$video" ] || continue
+              VIDEO_COUNT=$((VIDEO_COUNT + 1))
               
-              if [[ "$section" =~ ^(-?[0-9:.]+)-(-?[0-9:.]+|inf)$ ]]; then
-                START="${BASH_REMATCH[1]}"
-                END="${BASH_REMATCH[2]}"
-                echo "Parsed START='$START', END='$END'"
+              echo ""
+              echo "=== Processing video #$VIDEO_COUNT: '$video' ==="
+              
+              if ! DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video" 2>&1); then
+                echo "ERROR: Failed to get duration for '$video'"
+                echo "ffprobe output: $DURATION"
+                continue
+              fi
+              echo "Duration: $DURATION seconds"
+              
+              BASENAME="${video%.*}"
+              EXT="${video##*.}"
+              echo "Basename: '$BASENAME', Extension: '$EXT'"
+              
+              SECTIONS="${{ inputs.download_sections }}"
+              PART_NUM=0
+              CONCAT_LIST="${BASENAME}_concat_list.txt"
+              > "$CONCAT_LIST"
+              echo "Created concat list: '$CONCAT_LIST'"
+              
+              for section in $SECTIONS; do
+                echo ""
+                echo "--- Processing section: '$section' ---"
+                section="${section#\*}"
+                echo "After removing *: '$section'"
                 
-                if [[ "$START" =~ ^- ]]; then
-                  START=$(awk "BEGIN {print $DURATION - ${START#-}}")
-                  echo "Calculated negative start: $START"
-                fi
-                
-                if [[ "$END" == "inf" ]]; then
-                  END="$DURATION"
-                  echo "Using duration as end: $END"
-                elif [[ "$END" =~ ^- ]]; then
-                  END=$(awk "BEGIN {print $DURATION - ${END#-}}")
-                  echo "Calculated negative end: $END"
-                fi
-                
-                PART_FILE="${BASENAME}_part_${PART_NUM}.${EXT}"
-                echo "Cutting to: '$PART_FILE'"
-                echo "Command: ffmpeg -i \"$video\" -ss $START -to $END -c copy -y \"$PART_FILE\""
-                
-                if ffmpeg -i "$video" -ss "$START" -to "$END" -c copy -y "$PART_FILE" 2>&1 | tail -20; then
-                  echo "file '$PART_FILE'" >> "$CONCAT_LIST"
-                  PART_NUM=$((PART_NUM + 1))
-                  echo "Success! Part $PART_NUM created"
+                if [[ "$section" =~ ^(-?[0-9:.]+)-(-?[0-9:.]+|inf)$ ]]; then
+                  START="${BASH_REMATCH[1]}"
+                  END="${BASH_REMATCH[2]}"
+                  echo "Parsed START='$START', END='$END'"
+                  
+                  if [[ "$START" =~ ^- ]]; then
+                    START=$(awk "BEGIN {print $DURATION - ${START#-}}")
+                    echo "Calculated negative start: $START"
+                  fi
+                  
+                  if [[ "$END" == "inf" ]]; then
+                    END="$DURATION"
+                    echo "Using duration as end: $END"
+                  elif [[ "$END" =~ ^- ]]; then
+                    END=$(awk "BEGIN {print $DURATION - ${END#-}}")
+                    echo "Calculated negative end: $END"
+                  fi
+                  
+                  PART_FILE="${BASENAME}_part_${PART_NUM}.${EXT}"
+                  echo "Cutting to: '$PART_FILE'"
+                  echo "Command: ffmpeg -i \"$video\" -ss $START -to $END -c copy -y \"$PART_FILE\""
+                  
+                  if ffmpeg -i "$video" -ss "$START" -to "$END" -c copy -y "$PART_FILE" 2>&1 | tail -20; then
+                    echo "file '$PART_FILE'" >> "$CONCAT_LIST"
+                    PART_NUM=$((PART_NUM + 1))
+                    echo "Success! Part $PART_NUM created"
+                  else
+                    echo "ERROR: ffmpeg failed for section $section"
+                  fi
                 else
-                  echo "ERROR: ffmpeg failed for section $section"
+                  echo "WARNING: Section '$section' doesn't match expected format"
+                fi
+              done
+              
+              echo ""
+              echo "=== Combining phase ==="
+              echo "Total parts created: $PART_NUM"
+              
+              if [ $PART_NUM -gt 0 ]; then
+                echo "Concat list contents:"
+                cat "$CONCAT_LIST"
+                
+                TEMP_OUTPUT="${BASENAME}_combined_temp.${EXT}"
+                echo "Combining into: '$TEMP_OUTPUT'"
+                
+                if ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy -y "$TEMP_OUTPUT" 2>&1 | tail -20; then
+                  echo "Replacing original '$video' with combined file"
+                  mv "$TEMP_OUTPUT" "$video"
+                  
+                  echo "Cleaning up temporary files"
+                  rm -f "${BASENAME}_part_"*.${EXT} "$CONCAT_LIST"
+                  echo "✓ Successfully processed: '$video'"
+                else
+                  echo "ERROR: Failed to combine sections"
                 fi
               else
-                echo "WARNING: Section '$section' doesn't match expected format"
+                echo "WARNING: No parts were created for '$video'"
               fi
             done
             
             echo ""
-            echo "=== Combining phase ==="
-            echo "Total parts created: $PART_NUM"
-            
-            if [ $PART_NUM -gt 0 ]; then
-              echo "Concat list contents:"
-              cat "$CONCAT_LIST"
-              
-              TEMP_OUTPUT="${BASENAME}_combined_temp.${EXT}"
-              echo "Combining into: '$TEMP_OUTPUT'"
-              
-              if ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy -y "$TEMP_OUTPUT" 2>&1 | tail -20; then
-                echo "Replacing original '$video' with combined file"
-                mv "$TEMP_OUTPUT" "$video"
-                
-                echo "Cleaning up temporary files"
-                rm -f "${BASENAME}_part_"*.${EXT} "$CONCAT_LIST"
-                echo "✓ Successfully processed: '$video'"
-              else
-                echo "ERROR: Failed to combine sections"
-              fi
-            else
-              echo "WARNING: No parts were created for '$video'"
-            fi
-          done
-          
-          echo ""
-          echo "=== Final summary ==="
-          echo "Total videos processed: $VIDEO_COUNT"
-          echo "Remaining files:"
-          ls -lh *.mp4 *.mkv *.webm 2>/dev/null || echo "No video files"
+            echo "=== Final summary ==="
+            echo "Total videos processed: $VIDEO_COUNT"
+            echo "Remaining files:"
+            ls -lh *.mp4 *.mkv *.webm 2>/dev/null || echo "No video files"
+          )
 
 
       
