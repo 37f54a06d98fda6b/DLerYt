@@ -208,15 +208,7 @@ jobs:
           echo "📋 Subtitle options: $SUBTITLE_OPTS"
           echo "🔤 Subtitle langs input: ${{ inputs.subtitle_langs }}"
           echo "✅ Subtitles enabled: ${{ inputs.subtitles }}"
-
-          # Build download sections arguments
-          SECTION_OPTS=""
-          if [ -n "${{ inputs.download_sections }}" ]; then
-            for SECTION in ${{ inputs.download_sections }}; do
-              SECTION_OPTS="$SECTION_OPTS --download-sections $SECTION"
-            done
-            echo "📍 Download sections: $SECTION_OPTS"
-          fi        
+    
 
           mkdir -p downloads tmp_downloads
           
@@ -227,9 +219,39 @@ jobs:
               -f "${{ steps.format.outputs.format }}" \
               --output "tmp_downloads/${{ inputs.output_template }}" \
               $SUBTITLE_OPTS \
-              $SECTION_OPTS \
               "$URL"
           done
+      
+      
+      - name: Cut video sections
+        if: inputs.download_sections != ''
+        run: |
+          shopt -s nullglob
+          for file in *.{mp4,mkv,webm,mov,avi}; do
+            [ -f "$file" ] || continue
+            base="${file%.*}"
+            ext="${file##*.}"
+            
+            section_num=1
+            for SECTION in ${{ inputs.download_sections }}; do
+              # Parse start and end times
+              START="${SECTION%%-*}"
+              END="${SECTION##*-}"
+              
+              # Remove * prefix if present
+              START="${START#\*}"
+              [ "$END" = "inf" ] && END_OPT="" || END_OPT="-to $END"
+              
+              output="${base}_part${section_num}.${ext}"
+              ffmpeg -i "$file" -ss "$START" $END_OPT -c copy -avoid_negative_ts make_zero "$output"
+              
+              ((section_num++))
+            done
+            
+            # Remove original full video after cutting
+            rm "$file"
+          done
+
       
       - name: Package video(s)
         if: inputs.mode != 'list-formats'
