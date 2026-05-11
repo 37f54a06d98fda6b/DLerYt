@@ -224,7 +224,7 @@ jobs:
       
       
       - name: Cut video sections
-        if: inputs.download_sections != ''
+        if: inputs.download_sections != '' && inputs.mode != 'list-formats'
         run: |
           shopt -s nullglob
           for file in *.{mp4,mkv,webm,mov,avi}; do
@@ -232,18 +232,32 @@ jobs:
             base="${file%.*}"
             ext="${file##*.}"
             
+            # Get video duration for negative offsets
+            duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$file")
+            
             section_num=1
             for SECTION in ${{ inputs.download_sections }}; do
+              # Remove * prefix if present
+              SECTION="${SECTION#\*}"
+              
               # Parse start and end times
               START="${SECTION%%-*}"
               END="${SECTION##*-}"
               
-              # Remove * prefix if present
-              START="${START#\*}"
-              [ "$END" = "inf" ] && END_OPT="" || END_OPT="-to $END"
+              # Handle negative offsets (e.g., -2:00 means duration - 2:00)
+              if [[ "$START" == -* ]]; then
+                START=$(echo "$duration ${START#-}" | awk '{print $1 - $2}')
+              fi
+              if [[ "$END" == -* ]] && [[ "$END" != "inf" ]]; then
+                END=$(echo "$duration ${END#-}" | awk '{print $1 - $2}')
+              fi
+              
+              # Build ffmpeg command
+              [ -z "$START" ] || [ "$START" = "0" ] && START_OPT="" || START_OPT="-ss $START"
+              [ "$END" = "inf" ] || [ -z "$END" ] && END_OPT="" || END_OPT="-to $END"
               
               output="${base}_part${section_num}.${ext}"
-              ffmpeg -i "$file" -ss "$START" $END_OPT -c copy -avoid_negative_ts make_zero "$output"
+              ffmpeg -i "$file" $START_OPT $END_OPT -c copy -avoid_negative_ts make_zero "$output"
               
               ((section_num++))
             done
@@ -251,6 +265,7 @@ jobs:
             # Remove original full video after cutting
             rm "$file"
           done
+
 
       
       - name: Package video(s)
