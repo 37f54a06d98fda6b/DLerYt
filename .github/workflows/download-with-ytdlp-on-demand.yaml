@@ -223,48 +223,63 @@ jobs:
           done
       
       
-      - name: Cut video sections
+      - name: Cut and combine video sections
         if: inputs.download_sections != '' && inputs.mode != 'list-formats'
         run: |
           shopt -s nullglob
-          for file in *.{mp4,mkv,webm,mov,avi}; do
-            [ -f "$file" ] || continue
-            base="${file%.*}"
-            ext="${file##*.}"
+          
+          for video in *.mp4 *.mkv *.webm; do
+            [ -f "$video" ] || continue
             
-            # Get video duration for negative offsets
-            duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$file")
+            echo "Processing: $video"
+            DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$video")
             
-            section_num=1
-            for SECTION in ${{ inputs.download_sections }}; do
-              # Remove * prefix if present
-              SECTION="${SECTION#\*}"
+            BASENAME="${video%.*}"
+            EXT="${video##*.}"
+            
+            SECTIONS="${{ inputs.download_sections }}"
+            PART_NUM=0
+            CONCAT_LIST="${BASENAME}_concat_list.txt"
+            > "$CONCAT_LIST"
+            
+            for section in $SECTIONS; do
+              section="${section#\*}"
               
-              # Parse start and end times
-              START="${SECTION%%-*}"
-              END="${SECTION##*-}"
-              
-              # Handle negative offsets (e.g., -2:00 means duration - 2:00)
-              if [[ "$START" == -* ]]; then
-                START=$(echo "$duration ${START#-}" | awk '{print $1 - $2}')
+              if [[ "$section" =~ ^(-?[0-9:.]+)-(-?[0-9:.]+|inf)$ ]]; then
+                START="${BASH_REMATCH[1]}"
+                END="${BASH_REMATCH[2]}"
+                
+                if [[ "$START" =~ ^- ]]; then
+                  START=$(awk "BEGIN {print $DURATION - ${START#-}}")
+                fi
+                
+                if [[ "$END" == "inf" ]]; then
+                  END="$DURATION"
+                elif [[ "$END" =~ ^- ]]; then
+                  END=$(awk "BEGIN {print $DURATION - ${END#-}}")
+                fi
+                
+                PART_FILE="${BASENAME}_part_${PART_NUM}.${EXT}"
+                echo "  Cutting section: $START to $END -> $PART_FILE"
+                ffmpeg -i "$video" -ss "$START" -to "$END" -c copy -y "$PART_FILE"
+                echo "file '$PART_FILE'" >> "$CONCAT_LIST"
+                PART_NUM=$((PART_NUM + 1))
               fi
-              if [[ "$END" == -* ]] && [[ "$END" != "inf" ]]; then
-                END=$(echo "$duration ${END#-}" | awk '{print $1 - $2}')
-              fi
-              
-              # Build ffmpeg command
-              [ -z "$START" ] || [ "$START" = "0" ] && START_OPT="" || START_OPT="-ss $START"
-              [ "$END" = "inf" ] || [ -z "$END" ] && END_OPT="" || END_OPT="-to $END"
-              
-              output="${base}_part${section_num}.${ext}"
-              ffmpeg -i "$file" $START_OPT $END_OPT -c copy -avoid_negative_ts make_zero "$output"
-              
-              ((section_num++))
             done
             
-            # Remove original full video after cutting
-            rm "$file"
+            if [ $PART_NUM -gt 0 ]; then
+              TEMP_OUTPUT="${BASENAME}_combined_temp.${EXT}"
+              echo "  Combining $PART_NUM sections..."
+              ffmpeg -f concat -safe 0 -i "$CONCAT_LIST" -c copy -y "$TEMP_OUTPUT"
+              
+              echo "  Replacing original with combined sections"
+              mv "$TEMP_OUTPUT" "$video"
+              
+              rm -f "${BASENAME}_part_"*.${EXT} "$CONCAT_LIST"
+              echo "  Done: $video"
+            fi
           done
+
 
 
       
